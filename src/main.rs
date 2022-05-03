@@ -52,12 +52,13 @@ async fn parse_meal(location: &str, meal_time: MealTime) -> String {
 }
 
 fn get_current_time() -> MealTime {
-    let local = Local::now().time();
+    let local = Utc::now().with_timezone(&FixedOffset::east( 3600*9 )).time(); // KST
+
     let meal_cut = NaiveTime::from_hms(13, 30, 0);
     if local > meal_cut {
-        MealTime::Lunch
-    } else {
         MealTime::Dinner
+    } else {
+        MealTime::Lunch
     }
 }
 
