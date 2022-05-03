@@ -11,52 +11,66 @@ use serenity::model::interactions::application_command::{
 use serenity::model::interactions::{Interaction, InteractionResponseType};
 use serenity::prelude::*;
 
+use dotenv::dotenv;
+use scraper::{Html, Selector};
+
+use chrono::prelude::*;
+
+
 struct Handler;
+
+enum MealTime {
+    Breakfast,
+    Lunch,
+    Dinner
+}
+
+async fn parse_meal(location: &str, meal_time: MealTime) -> String {
+    let loc_get_param = match location {
+        "카이마루" => "fclt",
+        "교수회관" => "emp",
+        _ => {
+            panic!()
+        }
+    };
+    let query_url = format!("https://www.kaist.ac.kr/kr/html/campus/053001.html?dvs_cd={}", loc_get_param);
+    let resp = reqwest::get(query_url).await.expect("await fail").text().await.expect("await fail");
+    let parsed_html = Html::parse_document(&resp);
+    
+    let css_selector = match meal_time {
+        MealTime::Breakfast => "#tab_item_1 > table > tbody > tr > td:nth-child(1) > ul",
+        MealTime::Lunch => "#tab_item_1 > table > tbody > tr > td:nth-child(2) > ul",
+        MealTime::Dinner => "#tab_item_1 > table > tbody > tr > td:nth-child(3) > ul"
+    };
+    let selector = &Selector::parse(css_selector).expect("Error during the paring using selector");
+    let parsed_result = parsed_html.select(selector).next()
+    .expect("Error during selection").inner_html()
+    .replace("<br>", "")
+    .replace("&amp", "&");
+
+    parsed_result
+}
+
+fn get_current_time() -> MealTime {
+    let local = Local::now().time();
+    let meal_cut = NaiveTime::from_hms(13, 30, 0);
+    if local > meal_cut {
+        MealTime::Lunch
+    } else {
+        MealTime::Dinner
+    }
+}
+
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            let content = match command.data.name.as_str() {
-                "ping" => "Hey, I'm alive!".to_string(),
-                "id" => {
-                    let options = command
-                        .data
-                        .options
-                        .get(0)
-                        .expect("Expected user option")
-                        .resolved
-                        .as_ref()
-                        .expect("Expected user object");
-
-                    if let ApplicationCommandInteractionDataOptionValue::User(user, _member) =
-                        options
-                    {
-                        format!("{}'s id is {}", user.tag(), user.id)
-                    } else {
-                        "Please provide a valid user".to_string()
-                    }
-                },
-                "attachmentinput" => {
-                    let options = command
-                        .data
-                        .options
-                        .get(0)
-                        .expect("Expected attachment option")
-                        .resolved
-                        .as_ref()
-                        .expect("Expected attachment object");
-
-                    if let ApplicationCommandInteractionDataOptionValue::Attachment(attachment) =
-                        options
-                    {
-                        format!(
-                            "Attachment name: {}, attachment size: {}",
-                            attachment.filename, attachment.size
-                        )
-                    } else {
-                        "Please provide a valid attachment".to_string()
-                    }
+            let command_name = command.data.name.as_str();
+            let content = match command_name {
+                "카이마루" | "교수회관" => {
+                    let result:String = parse_meal(command_name, get_current_time()).await;
+                    result
                 },
                 _ => "not implemented :(".to_string(),
             };
@@ -87,89 +101,16 @@ impl EventHandler for Handler {
         let commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
             commands
                 .create_application_command(|command| {
-                    command.name("ping").description("A ping command")
+                    command.name("카이마루").description("밥")
                 })
                 .create_application_command(|command| {
-                    command.name("id").description("Get a user id").create_option(|option| {
-                        option
-                            .name("id")
-                            .description("The user to lookup")
-                            .kind(ApplicationCommandOptionType::User)
-                            .required(true)
-                    })
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("welcome")
-                        .description("Welcome a user")
-                        .create_option(|option| {
-                            option
-                                .name("user")
-                                .description("The user to welcome")
-                                .kind(ApplicationCommandOptionType::User)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
-                                .name("message")
-                                .description("The message to send")
-                                .kind(ApplicationCommandOptionType::String)
-                                .required(true)
-                                .add_string_choice(
-                                    "Welcome to our cool server! Ask me if you need help",
-                                    "pizza",
-                                )
-                                .add_string_choice("Hey, do you want a coffee?", "coffee")
-                                .add_string_choice(
-                                    "Welcome to the club, you're now a good person. Well, I hope.",
-                                    "club",
-                                )
-                                .add_string_choice(
-                                    "I hope that you brought a controller to play together!",
-                                    "game",
-                                )
-                        })
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("numberinput")
-                        .description("Test command for number input")
-                        .create_option(|option| {
-                            option
-                                .name("int")
-                                .description("An integer from 5 to 10")
-                                .kind(ApplicationCommandOptionType::Integer)
-                                .min_int_value(5)
-                                .max_int_value(10)
-                                .required(true)
-                        })
-                        .create_option(|option| {
-                            option
-                                .name("number")
-                                .description("A float from -3.3 to 234.5")
-                                .kind(ApplicationCommandOptionType::Number)
-                                .min_number_value(-3.3)
-                                .max_number_value(234.5)
-                                .required(true)
-                        })
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("attachmentinput")
-                        .description("Test command for attachment input")
-                        .create_option(|option| {
-                            option
-                                .name("attachment")
-                                .description("A file")
-                                .kind(ApplicationCommandOptionType::Attachment)
-                                .required(true)
-                        })
+                    command.name("교수회관").description("바압")
                 })
         })
         .await;
 
         println!("I now have the following guild slash commands: {:#?}", commands);
-
+        /*
         let guild_command =
             ApplicationCommand::create_global_application_command(&ctx.http, |command| {
                 command.name("wonderful_command").description("An amazing command")
@@ -177,11 +118,13 @@ impl EventHandler for Handler {
             .await;
 
         println!("I created the following global slash command: {:#?}", guild_command);
+        */
     }
 }
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     // Configure the client with your Discord bot token in the environment.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
