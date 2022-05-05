@@ -49,10 +49,12 @@ async fn parse_meal(location: &str, meal_time: MealTime) -> String {
         .select(selector)
         .next()
         .expect("Error during selection")
-        .inner_html()
+        .inner_html();
+    let parsed_result = parsed_result
         .replace("<br>", "")
-        .replace("&amp", "&");
-
+        .replace("&amp;", "&")
+        .trim().to_string();
+    
     parsed_result
 }
 
@@ -77,7 +79,11 @@ impl EventHandler for Handler {
             let content = match command_name {
                 "카이마루" | "교수회관" => {
                     let result: String = parse_meal(command_name, get_current_time()).await;
-                    result
+                    if result.is_empty() {
+                        "안함~".to_string()
+                    } else {
+                        result
+                    }
                 }
                 _ => "not implemented :(".to_string(),
             };
