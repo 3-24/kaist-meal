@@ -23,6 +23,7 @@ async fn parse_meal(location: &str, meal_time: MealTime) -> String {
     let loc_get_param = match location {
         "카이마루" => "fclt",
         "교수회관" => "emp",
+        "동맛골" => "east1",
         _ => {
             panic!()
         }
@@ -77,7 +78,7 @@ impl EventHandler for Handler {
         if let Interaction::ApplicationCommand(command) = interaction {
             let command_name = command.data.name.as_str();
             let content = match command_name {
-                "카이마루" | "교수회관" => {
+                "카이마루" | "교수회관" | "동맛골" => {
                     let result: String = parse_meal(command_name, get_current_time()).await;
                     if result.is_empty() {
                         "안함~".to_string()
@@ -115,6 +116,7 @@ impl EventHandler for Handler {
             commands
                 .create_application_command(|command| command.name("카이마루").description("밥"))
                 .create_application_command(|command| command.name("교수회관").description("바압"))
+                .create_application_command(|command| command.name("동맛골").description("바아압"))
         })
         .await;
 
@@ -122,15 +124,6 @@ impl EventHandler for Handler {
             "I now have the following guild slash commands: {:#?}",
             commands
         );
-        /*
-        let guild_command =
-            ApplicationCommand::create_global_application_command(&ctx.http, |command| {
-                command.name("wonderful_command").description("An amazing command")
-            })
-            .await;
-
-        println!("I created the following global slash command: {:#?}", guild_command);
-        */
     }
 }
 
